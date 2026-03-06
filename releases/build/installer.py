@@ -314,6 +314,7 @@ def generate_uninstaller(uninstall_bat_path, files_to_delete, reg_key):
 
 def apply_preconfig(file_path, api_key, model, api_base, delay_ms, retry_mode, debug_mode,
                     check_hallucination=None, context_budget=None, context_truncation=None, context_cache_mode=None,
+                    prompt_cache_retention=None, gemini_cached_content=None,
                     small_model=False, token_limits_json=None):
     try:
         api_base = _normalize_api_url_for_config(api_base)
@@ -338,6 +339,14 @@ def apply_preconfig(file_path, api_key, model, api_base, delay_ms, retry_mode, d
             cache_value = str(context_cache_mode)
             data = re.sub(r'pre_context_cache_mode\s*=\s*".*?"',
                           f'pre_context_cache_mode = "{cache_value}"', data)
+        if prompt_cache_retention is not None:
+            retention_value = str(prompt_cache_retention)
+            data = re.sub(r'pre_prompt_cache_retention\s*=\s*".*?"',
+                          f'pre_prompt_cache_retention = "{retention_value}"', data)
+        if gemini_cached_content is not None:
+            gemini_cache_value = str(gemini_cached_content)
+            data = re.sub(r'pre_gemini_cached_content\s*=\s*".*?"',
+                          f'pre_gemini_cached_content = "{gemini_cache_value}"', data)
         if token_limits_json is not None:
             escaped_json = _escape_for_as_string(token_limits_json)
             data = re.sub(r'pre_model_token_limits_json\s*=\s*".*?"',
@@ -428,7 +437,7 @@ class InstallThread(QtCore.QThread):
         self._loop = None
         return ans
 
-    def __init__(self, install_dir, versions, script_dir, language, api_key, model, api_base, delay_ms, retry_mode, debug_mode, check_hallucination, context_budget, context_truncation, context_cache_mode, small_model):
+    def __init__(self, install_dir, versions, script_dir, language, api_key, model, api_base, delay_ms, retry_mode, debug_mode, check_hallucination, context_budget, context_truncation, context_cache_mode, prompt_cache_retention, gemini_cached_content, small_model):
         super().__init__()
         self.install_dir = install_dir
         self.versions = list(versions) if versions else []
@@ -444,6 +453,8 @@ class InstallThread(QtCore.QThread):
         self.context_budget = context_budget
         self.context_truncation = context_truncation
         self.context_cache_mode = context_cache_mode
+        self.prompt_cache_retention = prompt_cache_retention
+        self.gemini_cached_content = gemini_cached_content
         self.small_model = small_model
         self.files_installed = []
         self._loop = None
@@ -497,6 +508,8 @@ class InstallThread(QtCore.QThread):
                                         str(self.context_budget) if variant == "with_context" else None,
                                         self.context_truncation if variant == "with_context" else None,
                                         self.context_cache_mode if variant == "with_context" else None,
+                                        self.prompt_cache_retention if variant == "with_context" else None,
+                                        self.gemini_cached_content if variant == "with_context" else None,
                                         self.small_model,
                                         MODEL_TOKEN_LIMITS_JSON)
                     self.progress.emit(f"Installed {dest_name} (Overwritten).")
@@ -530,6 +543,8 @@ class InstallThread(QtCore.QThread):
                                             str(self.context_budget) if variant == "with_context" else None,
                                             self.context_truncation if variant == "with_context" else None,
                                             self.context_cache_mode if variant == "with_context" else None,
+                                            self.prompt_cache_retention if variant == "with_context" else None,
+                                            self.gemini_cached_content if variant == "with_context" else None,
                                             self.small_model,
                                             MODEL_TOKEN_LIMITS_JSON)
                         self.progress.emit(f"Installed {new_name}.")
@@ -546,6 +561,8 @@ class InstallThread(QtCore.QThread):
                                     str(self.context_budget) if variant == "with_context" else None,
                                     self.context_truncation if variant == "with_context" else None,
                                     self.context_cache_mode if variant == "with_context" else None,
+                                    self.prompt_cache_retention if variant == "with_context" else None,
+                                    self.gemini_cached_content if variant == "with_context" else None,
                                     self.small_model,
                                     MODEL_TOKEN_LIMITS_JSON)
                 self.progress.emit(f"Installed {dest_name}.")
@@ -1166,6 +1183,8 @@ class ProgressPage(QtWidgets.QWizardPage):
             self.wizard.context_token_budget,
             self.wizard.context_truncation_mode,
             self.wizard.context_cache_mode,
+            self.wizard.prompt_cache_retention,
+            self.wizard.gemini_cached_content,
             self.wizard.small_model,
         )
         self.thread.progress.connect(self.append_text)
@@ -1247,13 +1266,16 @@ class InstallerWizard(QtWidgets.QWizard):
         self.api_key = ''
         self.model = API_PROVIDERS["gpt-5-nano"]["model"]
         self.api_base = API_PROVIDERS["gpt-5-nano"]["api_base"]
-        self.delay_ms = 0
-        self.retry_mode = 0
+        # Recommended default profile for highest cache hit probability on official OpenAI.
+        self.delay_ms = 500
+        self.retry_mode = 1
         self.debug_mode = False
         self.check_hallucination = False
         self.context_token_budget = 6000
         self.context_truncation_mode = "drop_oldest"
-        self.context_cache_mode = "off"
+        self.context_cache_mode = "auto"
+        self.prompt_cache_retention = "24h"
+        self.gemini_cached_content = ""
         self.small_model = False
         self.has_context_variant = True
 

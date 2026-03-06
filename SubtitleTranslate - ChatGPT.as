@@ -38,14 +38,15 @@ string GetLoginDesc() {
          + "{$CP936=\n\n可选追加 cache=auto 或 cache=off 用于控制上下文缓存模式，auto 在不支持时会自动回退到 chat。$}"
          + "{$CP0=Please enter the model name, API URL, optional 'nullkey', optional delay in ms, and retry mode 0-3 (e.g., gpt-5-nano|https://api.openai.com/v1/chat/completions|nullkey|500|retry1).$}"
          + "{$CP0=\n\nInstaller defaults will remain in effect until you update the settings in PotPlayer's panel, and any panel changes will always take priority.$}"
-         + "{$CP0=\n\nOptionally append cache=auto or cache=off to control context caching. Auto falls back to chat when caching is unsupported.$}";
+         + "{$CP0=\n\nOptionally append cache=auto or cache=off to control context caching. Auto falls back to chat when caching is unsupported.$}"
+         + "{$CP0=\n\nFor OpenAI official API you can also append retention=24h (or cache24h) to extend prompt cache retention. For Gemini official API you can append gcache=cachedContents/... to reuse an explicit cache.$}";
 }
 
 string GetUserText() {
     return "{$CP949=모델 이름|API 주소|nullkey|지연(ms)|재시도 모드|캐시 모드 (현재: " + GPT_selected_model + " | " + GPT_apiUrl + " | " + GPT_delay_ms + " | " + GPT_retry_mode + " | " + GPT_context_cache_mode + ")$}"
          + "{$CP950=模型名稱|API 地址|nullkey|延遲ms|重試模式|快取模式 (目前: " + GPT_selected_model + " | " + GPT_apiUrl + " | " + GPT_delay_ms + " | " + GPT_retry_mode + " | " + GPT_context_cache_mode + ")$}"
          + "{$CP936=模型名称|API 地址|nullkey|延迟ms|重试模式|缓存模式 (目前: " + GPT_selected_model + " | " + GPT_apiUrl + " | " + GPT_delay_ms + " | " + GPT_retry_mode + " | " + GPT_context_cache_mode + ")$}"
-         + "{$CP0=Model Name|API URL|nullkey|Delay ms|Retry mode|Cache mode (Current: " + GPT_selected_model + " | " + GPT_apiUrl + " | " + GPT_delay_ms + " | " + GPT_retry_mode + " | " + GPT_context_cache_mode + ")$}";
+         + "{$CP0=Model Name|API URL|nullkey|Delay ms|Retry mode|Cache mode|Retention|Gemini cached_content (Current: " + GPT_selected_model + " | " + GPT_apiUrl + " | " + GPT_delay_ms + " | " + GPT_retry_mode + " | " + GPT_context_cache_mode + " | " + GPT_prompt_cache_retention + " | " + GPT_gemini_cached_content + ")$}";
 }
 
 string GetPasswordText() {
@@ -65,6 +66,8 @@ string GPT_pre_retry_mode = "0"; // will be replaced during installation
 string GPT_pre_context_token_budget = "6000"; // approx. tokens reserved for context (0 = auto)
 string GPT_pre_context_truncation_mode = "drop_oldest"; // drop_oldest | smart_trim
 string GPT_pre_context_cache_mode = "off"; // auto | off
+string GPT_pre_prompt_cache_retention = ""; // ""(default), in-memory, 24h (OpenAI official only)
+string GPT_pre_gemini_cached_content = ""; // optional cachedContents/... name for Gemini OpenAI-compatible endpoint
 string GPT_pre_small_model = "0"; // 0 | 1
 string GPT_pre_check_hallucination = "0"; // 0 | 1
 string GPT_pre_model_token_limits_json = "{}"; // serialized token limit rules (injected by installer)
@@ -80,6 +83,8 @@ string GPT_retry_mode = GPT_pre_retry_mode; // Auto retry mode
 string GPT_context_token_budget = GPT_pre_context_token_budget; // Approximate token budget for context
 string GPT_context_truncation_mode = GPT_pre_context_truncation_mode; // Truncation mode when context exceeds budget
 string GPT_context_cache_mode = GPT_pre_context_cache_mode; // auto | off
+string GPT_prompt_cache_retention = GPT_pre_prompt_cache_retention; // "" | in-memory | 24h
+string GPT_gemini_cached_content = GPT_pre_gemini_cached_content; // cachedContents/... (optional)
 string GPT_small_model = GPT_pre_small_model;
 string GPT_check_hallucination = GPT_pre_check_hallucination;
 string GPT_UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
@@ -127,6 +132,8 @@ void EnsureInstallerDefaultsPersisted() {
     EnsureConfigDefault("gpt_context_token_budget", GPT_pre_context_token_budget);
     EnsureConfigDefault("gpt_context_truncation_mode", GPT_pre_context_truncation_mode);
     EnsureConfigDefault("gpt_context_cache_mode", GPT_pre_context_cache_mode);
+    EnsureConfigDefault("gpt_prompt_cache_retention", GPT_pre_prompt_cache_retention);
+    EnsureConfigDefault("gpt_gemini_cached_content", GPT_pre_gemini_cached_content);
     EnsureConfigDefault("gpt_small_model", GPT_pre_small_model);
     EnsureConfigDefault("gpt_check_hallucination", GPT_pre_check_hallucination);
 }
@@ -141,6 +148,8 @@ void RefreshConfiguration() {
     GPT_context_token_budget = LoadInstallerConfig("gpt_context_token_budget", GPT_pre_context_token_budget);
     GPT_context_truncation_mode = LoadInstallerConfig("gpt_context_truncation_mode", GPT_pre_context_truncation_mode);
     GPT_context_cache_mode = NormalizeCacheMode(LoadInstallerConfig("gpt_context_cache_mode", GPT_pre_context_cache_mode));
+    GPT_prompt_cache_retention = NormalizePromptCacheRetention(LoadInstallerConfig("gpt_prompt_cache_retention", GPT_pre_prompt_cache_retention));
+    GPT_gemini_cached_content = LoadInstallerConfig("gpt_gemini_cached_content", GPT_pre_gemini_cached_content).Trim();
     GPT_small_model = LoadInstallerConfig("gpt_small_model", GPT_pre_small_model);
     GPT_check_hallucination = LoadInstallerConfig("gpt_check_hallucination", GPT_pre_check_hallucination);
 }
@@ -334,6 +343,8 @@ string ServerLogin(string User, string Pass) {
     string delayToken = "";
     string retryToken = "";
     string cacheToken = "";
+    string promptCacheRetentionToken = GPT_prompt_cache_retention;
+    string geminiCachedContentToken = GPT_gemini_cached_content;
     string smallModelToken = "";
     string halluToken = "";
     string normalizedCacheMode = GPT_context_cache_mode;
@@ -355,6 +366,20 @@ string ServerLogin(string User, string Pass) {
             cacheToken = "auto";
         else if (lowered == "cacheoff" || lowered == "nocache")
             cacheToken = "off";
+        else if (lowered.length() >= 10 && lowered.substr(0,10) == "retention=")
+            promptCacheRetentionToken = lowered.substr(10);
+        else if (lowered == "cache24h")
+            promptCacheRetentionToken = "24h";
+        else if (lowered == "cachemem" || lowered == "cachememory")
+            promptCacheRetentionToken = "in-memory";
+        else if (lowered.length() >= 15 && lowered.substr(0,15) == "cachedcontent=")
+            geminiCachedContentToken = t.substr(15).Trim();
+        else if (lowered.length() >= 15 && lowered.substr(0,15) == "cached_content=")
+            geminiCachedContentToken = t.substr(15).Trim();
+        else if (lowered.length() >= 7 && lowered.substr(0,7) == "gcache=")
+            geminiCachedContentToken = t.substr(7).Trim();
+        else if (lowered == "gcacheoff" || lowered == "nocachedcontent")
+            geminiCachedContentToken = "";
         else if (lowered == "smallmodel=1" || lowered == "smallmodel")
             smallModelToken = "1";
         else if (lowered == "smallmodel=0")
@@ -374,6 +399,7 @@ string ServerLogin(string User, string Pass) {
         normalizedCacheMode = NormalizeCacheMode(cacheToken);
     else
         normalizedCacheMode = NormalizeCacheMode(normalizedCacheMode);
+    promptCacheRetentionToken = NormalizePromptCacheRetention(promptCacheRetentionToken);
     if (smallModelToken != "")
         GPT_small_model = smallModelToken;
     if (halluToken != "")
@@ -406,15 +432,22 @@ string ServerLogin(string User, string Pass) {
         return errorAccum;
     }
     string storedApiKey = (lowerPass == "nullkey" || (allowNullApiKey && Pass == "")) ? "nullkey" : Pass;
-    bool isOfficial = (apiUrlLocal.find("api.openai.com") != -1);
+    bool isOfficial = IsOpenAIOfficialApiUrl(apiUrlLocal);
+    bool isGemini = IsGeminiApiUrl(apiUrlLocal);
     string verifyHeaders = BuildAuthHeaders(Pass);
     string testSystemMsg = "You are a test assistant.";
     string testUserMsg = "Hello";
-    string escapedTestSystemMsg = JsonEscape(testSystemMsg);
-    string escapedTestUserMsg = JsonEscape(testUserMsg);
-    string testRequestData = "{\"model\":\"" + userModel + "\"," 
-                             "\"messages\":[{\"role\":\"system\",\"content\":\"" + escapedTestSystemMsg + "\"}," 
-                             "{\"role\":\"user\",\"content\":\"" + escapedTestUserMsg + "\"}]}";
+    string testPromptCacheKey = BuildPromptCacheKey(userModel, "verify", "verify");
+    string testRequestData = BuildChatPayload(
+        userModel,
+        testSystemMsg,
+        testUserMsg,
+        isOfficial,
+        testPromptCacheKey,
+        promptCacheRetentionToken,
+        isGemini,
+        geminiCachedContentToken
+    );
     string testResponse = HostUrlGetString(apiUrlLocal, GPT_UserAgent, verifyHeaders, testRequestData);
     if (testResponse != "") {
         JsonReader testReader;
@@ -430,6 +463,10 @@ string ServerLogin(string User, string Pass) {
                     HostSaveString("gpt_retry_mode", GPT_retry_mode);
                     GPT_context_cache_mode = normalizedCacheMode;
                     HostSaveString("gpt_context_cache_mode", GPT_context_cache_mode);
+                    GPT_prompt_cache_retention = promptCacheRetentionToken;
+                    HostSaveString("gpt_prompt_cache_retention", GPT_prompt_cache_retention);
+                    GPT_gemini_cached_content = geminiCachedContentToken;
+                    HostSaveString("gpt_gemini_cached_content", GPT_gemini_cached_content);
                     HostSaveString("gpt_small_model", GPT_small_model);
                     HostSaveString("gpt_check_hallucination", GPT_check_hallucination);
                     GPT_context_cache_disabled_for_session = false;
@@ -449,7 +486,19 @@ string ServerLogin(string User, string Pass) {
     }
     if (apiUrlLocal.find("chat/completions") == -1) {
         string correctedApiUrl = apiUrlLocal + "/chat/completions";
-        string correctedTestResponse = HostUrlGetString(correctedApiUrl, GPT_UserAgent, verifyHeaders, testRequestData);
+        bool correctedIsOfficial = IsOpenAIOfficialApiUrl(correctedApiUrl);
+        bool correctedIsGemini = IsGeminiApiUrl(correctedApiUrl);
+        string correctedTestRequestData = BuildChatPayload(
+            userModel,
+            testSystemMsg,
+            testUserMsg,
+            correctedIsOfficial,
+            testPromptCacheKey,
+            promptCacheRetentionToken,
+            correctedIsGemini,
+            geminiCachedContentToken
+        );
+        string correctedTestResponse = HostUrlGetString(correctedApiUrl, GPT_UserAgent, verifyHeaders, correctedTestRequestData);
         if (correctedTestResponse != "") {
             JsonReader correctedReader;
             JsonValue correctedRoot;
@@ -465,6 +514,10 @@ string ServerLogin(string User, string Pass) {
                     HostSaveString("gpt_retry_mode", GPT_retry_mode);
                     GPT_context_cache_mode = normalizedCacheMode;
                     HostSaveString("gpt_context_cache_mode", GPT_context_cache_mode);
+                    GPT_prompt_cache_retention = promptCacheRetentionToken;
+                    HostSaveString("gpt_prompt_cache_retention", GPT_prompt_cache_retention);
+                    GPT_gemini_cached_content = geminiCachedContentToken;
+                    HostSaveString("gpt_gemini_cached_content", GPT_gemini_cached_content);
                     HostSaveString("gpt_small_model", GPT_small_model);
                     HostSaveString("gpt_check_hallucination", GPT_check_hallucination);
                     GPT_context_cache_disabled_for_session = false;
@@ -539,6 +592,8 @@ void ServerLogout() {
     GPT_context_token_budget = GPT_pre_context_token_budget;
     GPT_context_truncation_mode = GPT_pre_context_truncation_mode;
     GPT_context_cache_mode = GPT_pre_context_cache_mode;
+    GPT_prompt_cache_retention = GPT_pre_prompt_cache_retention;
+    GPT_gemini_cached_content = GPT_pre_gemini_cached_content;
     GPT_small_model = GPT_pre_small_model;
     GPT_context_cache_disabled_for_session = false;
     GPT_context_cache_disable_key = "";
@@ -550,6 +605,8 @@ void ServerLogout() {
     HostSaveString("gpt_context_token_budget", GPT_context_token_budget);
     HostSaveString("gpt_context_truncation_mode", GPT_context_truncation_mode);
     HostSaveString("gpt_context_cache_mode", GPT_context_cache_mode);
+    HostSaveString("gpt_prompt_cache_retention", GPT_prompt_cache_retention);
+    HostSaveString("gpt_gemini_cached_content", GPT_gemini_cached_content);
     HostSaveString("gpt_small_model", GPT_small_model);
     HostSaveString("gpt_check_hallucination", GPT_check_hallucination);
     HostPrintUTF8("Successfully logged out.\n");
@@ -724,18 +781,28 @@ string Translate(string Text, string &in SrcLang, string &in DstLang) {
 
     string userMsg = Text;
 
-    string escapedSystemMsg = JsonEscape(systemMsg);
-    string escapedUserMsg = JsonEscape(userMsg);
+    bool isOpenAIOfficial = IsOpenAIOfficialApiUrl(GPT_apiUrl);
+    bool isGeminiApi = IsGeminiApiUrl(GPT_apiUrl);
+    bool enableOpenAIPromptCacheControls = isOpenAIOfficial;
+    string promptCacheRetention = isOpenAIOfficial ? NormalizePromptCacheRetention(GPT_prompt_cache_retention) : "";
+    string promptCacheKey = isOpenAIOfficial ? BuildPromptCacheKey(GPT_selected_model, sourceLabel, targetLabel) : "";
 
-    string requestData = "{\"model\":\"" + GPT_selected_model + "\"," 
-                         "\"messages\":[{\"role\":\"system\",\"content\":\"" + escapedSystemMsg + "\"}," 
-                         "{\"role\":\"user\",\"content\":\"" + escapedUserMsg + "\"}]}";
+    string requestData = BuildChatPayload(
+        GPT_selected_model,
+        systemMsg,
+        userMsg,
+        enableOpenAIPromptCacheControls,
+        promptCacheKey,
+        promptCacheRetention,
+        isGeminiApi,
+        GPT_gemini_cached_content
+    );
 
     string headers = BuildAuthHeaders(GPT_api_key);
     int delayInt = ParseInt(GPT_delay_ms);
     int retryModeInt = ParseInt(GPT_retry_mode);
 
-    string cacheSessionKey = GPT_context_cache_mode + "|" + GPT_apiUrl + "|" + GPT_selected_model;
+    string cacheSessionKey = GPT_context_cache_mode + "|" + GPT_apiUrl + "|" + GPT_selected_model + "|" + promptCacheRetention + "|" + GPT_gemini_cached_content;
     if (cacheSessionKey != GPT_context_cache_disable_key)
         GPT_context_cache_disabled_for_session = false;
     GPT_context_cache_disable_key = cacheSessionKey;
@@ -760,11 +827,11 @@ string Translate(string Text, string &in SrcLang, string &in DstLang) {
         response = "";
 
         // Try Context Caching first if enabled
-        if (GPT_context_cache_mode != "off" && !GPT_context_cache_disabled_for_session) {
+        if (GPT_context_cache_mode != "off" && !GPT_context_cache_disabled_for_session && ShouldTryResponsesEndpoint(GPT_apiUrl)) {
             string responsesUrl = DeriveResponsesUrl(GPT_apiUrl);
             string cacheFailure = "";
             if (responsesUrl != "") {
-                translation = TranslateWithResponses(responsesUrl, headers, systemMsg, Text, delayInt, cacheFailure);
+                translation = TranslateWithResponses(responsesUrl, headers, GPT_selected_model, systemMsg, Text, promptCacheKey, promptCacheRetention, cacheFailure);
             } else {
                 cacheFailure = "Unable to resolve responses endpoint from current API URL.";
             }
@@ -778,10 +845,14 @@ string Translate(string Text, string &in SrcLang, string &in DstLang) {
             }
 
             if (!GPT_context_cache_disabled_for_session) {
-                // Caching failed, fall back to standard chat for this session
-                GPT_context_cache_disabled_for_session = true;
                 string fallbackMessage = cacheFailure == "" ? "Context caching failed." : "Context caching failed: " + cacheFailure;
-                HostPrintUTF8(fallbackMessage + "\nUsing chat completions for this session.\n");
+                if (ShouldDisableContextCacheForSession(cacheFailure)) {
+                    // Permanent capability errors should disable responses attempts for this session.
+                    GPT_context_cache_disabled_for_session = true;
+                    HostPrintUTF8(fallbackMessage + "\nUsing chat completions for this session.\n");
+                } else {
+                    HostPrintUTF8(fallbackMessage + "\nUsing chat completions for this request.\n");
+                }
             }
         }
 
@@ -821,6 +892,21 @@ string Translate(string Text, string &in SrcLang, string &in DstLang) {
                    Root["error"]["message"].isString()) {
             string errorMessage = Root["error"]["message"].asString();
             HostPrintUTF8("API Error: " + errorMessage + "\n");
+            string loweredError = ToLower(errorMessage);
+            if (enableOpenAIPromptCacheControls && loweredError.find("prompt_cache") != -1) {
+                enableOpenAIPromptCacheControls = false;
+                requestData = BuildChatPayload(
+                    GPT_selected_model,
+                    systemMsg,
+                    userMsg,
+                    false,
+                    promptCacheKey,
+                    promptCacheRetention,
+                    isGeminiApi,
+                    GPT_gemini_cached_content
+                );
+                HostPrintUTF8("Prompt cache control fields are unsupported on this endpoint. Retrying without them.\n");
+            }
              // API returned an error (e.g. rate limit, context length). 
              // Should we retry? Usually yes for rate limits, maybe no for invalid request.
              // For simplicity and robustness, we retry.
@@ -893,6 +979,98 @@ string NormalizeCacheMode(const string &in mode) {
     return "auto";
 }
 
+string NormalizePromptCacheRetention(const string &in retention) {
+    string trimmed = retention.Trim();
+    if (trimmed == "")
+        return "";
+    string lower = ToLower(trimmed);
+    if (lower == "24h")
+        return "24h";
+    if (lower == "in_memory" || lower == "in-memory" || lower == "memory" || lower == "mem" || lower == "default")
+        return "in-memory";
+    return "";
+}
+
+bool IsOpenAIOfficialApiUrl(const string &in apiUrl) {
+    return ToLower(apiUrl).find("api.openai.com") != -1;
+}
+
+bool IsGeminiApiUrl(const string &in apiUrl) {
+    string lower = ToLower(apiUrl);
+    return lower.find("generativelanguage.googleapis.com") != -1;
+}
+
+bool ShouldTryResponsesEndpoint(const string &in apiUrl) {
+    if (IsGeminiApiUrl(apiUrl))
+        return false;
+    return true;
+}
+
+bool ShouldDisableContextCacheForSession(const string &in failureReason) {
+    string lower = ToLower(failureReason.Trim());
+    if (lower == "")
+        return false;
+    if (lower.find("404") != -1 || lower.find("not found") != -1)
+        return true;
+    if (lower.find("unsupported") != -1 || lower.find("does not support") != -1)
+        return true;
+    if (lower.find("unknown parameter") != -1 || lower.find("unrecognized") != -1 || lower.find("invalid parameter") != -1)
+        return true;
+    if (lower.find("no response from responses endpoint") != -1)
+        return true;
+    if (lower.find("route") != -1 || lower.find("endpoint") != -1 || lower.find("responses endpoint") != -1)
+        return true;
+    return false;
+}
+
+string BuildPromptCacheKey(const string &in modelName, const string &in sourceLang, const string &in targetLang) {
+    string key = "potplayer_subtitle_translate_v2";
+    string model = ToLower(modelName.Trim());
+    string src = ToLower(sourceLang.Trim());
+    string dst = ToLower(targetLang.Trim());
+    if (model != "")
+        key += "|" + model;
+    if (src == "")
+        src = "auto";
+    if (dst == "")
+        dst = "auto";
+    key += "|" + src + ">" + dst;
+    return key;
+}
+
+string BuildChatPayload(
+    const string &in modelName,
+    const string &in systemMsg,
+    const string &in userMsg,
+    bool includePromptCacheControls,
+    const string &in promptCacheKey,
+    const string &in promptCacheRetention,
+    bool includeGeminiCachedContent,
+    const string &in geminiCachedContent
+) {
+    string escapedModel = JsonEscape(modelName);
+    string escapedSystem = JsonEscape(systemMsg);
+    string escapedUser = JsonEscape(userMsg);
+    string payload = "{\"model\":\"" + escapedModel + "\"";
+
+    string cacheKey = promptCacheKey.Trim();
+    if (includePromptCacheControls && cacheKey != "")
+        payload += ",\"prompt_cache_key\":\"" + JsonEscape(cacheKey) + "\"";
+
+    string retention = NormalizePromptCacheRetention(promptCacheRetention);
+    if (includePromptCacheControls && retention != "")
+        payload += ",\"prompt_cache_retention\":\"" + JsonEscape(retention) + "\"";
+
+    payload += ",\"messages\":[{\"role\":\"system\",\"content\":\"" + escapedSystem + "\"},{\"role\":\"user\",\"content\":\"" + escapedUser + "\"}]";
+
+    string cachedContent = geminiCachedContent.Trim();
+    if (includeGeminiCachedContent && cachedContent != "")
+        payload += ",\"google\":{\"cached_content\":\"" + JsonEscape(cachedContent) + "\"}";
+
+    payload += "}";
+    return payload;
+}
+
 void EnsureTokenRulesLoaded() {
     if (GPT_token_rules_initialized)
         return;
@@ -963,11 +1141,24 @@ string ExecuteSimple(const string &in url, const string &in headers, const strin
     return HostUrlGetString(url, GPT_UserAgent, headers, payload);
 }
 
-string BuildResponsesPayload(const string &in systemMsg, const string &in subtitleText) {
+string BuildResponsesPayload(
+    const string &in modelName,
+    const string &in systemMsg,
+    const string &in subtitleText,
+    const string &in promptCacheKey,
+    const string &in promptCacheRetention
+) {
     string escapedSystem = JsonEscape(systemMsg);
     string escapedSubtitle = JsonEscape(subtitleText);
-    string payload = "{\"model\":\"" + GPT_selected_model + "\",\"input\":[";
-    payload += "{\"role\":\"system\",\"content\":[{\"type\":\"input_text\",\"text\":\"" + escapedSystem + "\",\"cache_control\":{\"type\":\"ephemeral\"}}]}";
+    string payload = "{\"model\":\"" + JsonEscape(modelName) + "\"";
+    string cacheKey = promptCacheKey.Trim();
+    if (cacheKey != "")
+        payload += ",\"prompt_cache_key\":\"" + JsonEscape(cacheKey) + "\"";
+    string retention = NormalizePromptCacheRetention(promptCacheRetention);
+    if (retention != "")
+        payload += ",\"prompt_cache_retention\":\"" + JsonEscape(retention) + "\"";
+    payload += ",\"input\":[";
+    payload += "{\"role\":\"system\",\"content\":[{\"type\":\"input_text\",\"text\":\"" + escapedSystem + "\"}]}";
     payload += ",{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"" + escapedSubtitle + "\"}]}";
     payload += "]}";
     return payload;
@@ -1003,8 +1194,17 @@ string ExtractResponsesText(JsonValue &in root) {
     return "";
 }
 
-string TranslateWithResponses(const string &in responsesUrl, const string &in headers, const string &in systemMsg, const string &in subtitleText, int delayInt, string &out failureReason) {
-    string requestData = BuildResponsesPayload(systemMsg, subtitleText);
+string TranslateWithResponses(
+    const string &in responsesUrl,
+    const string &in headers,
+    const string &in modelName,
+    const string &in systemMsg,
+    const string &in subtitleText,
+    const string &in promptCacheKey,
+    const string &in promptCacheRetention,
+    string &out failureReason
+) {
+    string requestData = BuildResponsesPayload(modelName, systemMsg, subtitleText, promptCacheKey, promptCacheRetention);
     string response = ExecuteSimple(responsesUrl, headers, requestData);
     if (response == "") {
         failureReason = "No response from Responses endpoint.";
