@@ -16,7 +16,7 @@ from openai import OpenAI
 import win32com.client
 from PyQt6 import QtWidgets, QtCore, QtGui
 
-PLUGIN_VERSION = "1.9.0"
+PLUGIN_VERSION = "1.9.2"
 
 # ========= Helpers for bundled resources =========
 

@@ -12,7 +12,7 @@ string GetTitle() {
 
 // The version number will be replaced during the installation process
 string GetVersion() {
-    return "1.9.0";
+    return "1.9.2";
 }
 
 string GetDesc() {

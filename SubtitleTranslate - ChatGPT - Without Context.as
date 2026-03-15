@@ -13,7 +13,7 @@ string GetTitle() {
 
 // The version number will be replaced during the installation process
 string GetVersion() {
-    return "1.9.0-wc";
+    return "1.9.2-wc";
 }
 
 string GetDesc() {
@@ -721,27 +721,6 @@ string Translate(string Text, string &in SrcLang, string &in DstLang) {
     
     // Fallback for when loop exhausts but we have a response (usually means parsing failed repeatedly or error returned repeatedly)
     return FormatFailureTranslation(response, "Translation failed after retries.");
-}
-
-string FormatFailureTranslation(const string &in rawResponse, const string &in fallbackMessage) {
-    string detail = rawResponse.Trim();
-    if (detail == "")
-        detail = fallbackMessage;
-    return GPT_WC_TRANSLATION_FAILURE_WARNING_PREFIX + detail;
-}
-
-// Plugin Initialization
-void OnInitialize() {
-    HostPrintUTF8("ChatGPT translation plugin loaded.\n");
-    RefreshConfiguration();
-    if (GPT_api_key != "") {
-        HostPrintUTF8("Saved API Key, model name, and API URL loaded.\n");
-    }
-}
-
-// Plugin Finalization
-void OnFinalize() {
-    HostPrintUTF8("ChatGPT translation plugin unloaded.\n");
 }
 
 string FormatFailureTranslation(const string &in rawResponse, const string &in fallbackMessage) {

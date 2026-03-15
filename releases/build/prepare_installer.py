@@ -10,7 +10,7 @@ try:
 except Exception as e:
     print(f"Could not get version from git: {e}")
     # Fallback to a predefined version or exit
-    version = "1.7.4" # Fallback
+    version = "1.9.2" # Fallback
 
 # Read installer.py
 with open('installer.py', 'r', encoding='utf-8') as f:

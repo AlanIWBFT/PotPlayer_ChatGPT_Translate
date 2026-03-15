@@ -1,3 +1,21 @@
+# 📢 PotPlayer ChatGPT Translate v1.9.2
+
+## 📦 下载地址 / Download
+
+| 渠道 (Channel) | 下载链接 (Download Link) |
+| --- | --- |
+| **GitHub (Global)** | [👉 Download Latest Installer (v1.9.2)](https://github.com/Felix3322/PotPlayer_ChatGPT_Translate/releases/latest) |
+| **Gitee (China)** | [🚀 国内镜像快速下载](https://gitee.com/felix3322/PotPlayer_ChatGPT_Translate/raw/master/releases/latest/installer.exe) |
+
+---
+
+## 🔧 更新内容 / Update Highlights
+
+*   **[修复] 无上下文脚本重复函数定义**：删除 `SubtitleTranslate - ChatGPT - Without Context.as` 末尾重复的 `FormatFailureTranslation`、`OnInitialize` 和 `OnFinalize`，修复播放视频/音频时弹出 AngelScript 报错窗口的问题（issue #100）。
+*   **[构建] 重新生成安装包**：同步更新插件与安装器版本号到 **v1.9.2**，并重建 installer 二进制。
+
+---
+
 # 📢 PotPlayer ChatGPT Translate v1.9.0
 
 ## 📦 下载地址 / Download
