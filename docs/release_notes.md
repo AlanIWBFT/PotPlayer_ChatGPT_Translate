@@ -1,3 +1,21 @@
+# 📢 PotPlayer ChatGPT Translate v1.9.2-release2
+
+## 📦 下载地址 / Download
+
+| 渠道 (Channel) | 下载链接 (Download Link) |
+| --- | --- |
+| **GitHub (Global)** | [👉 Download Latest Installer (v1.9.2-release2)](https://github.com/Felix3322/PotPlayer_ChatGPT_Translate/releases/latest) |
+| **Gitee (China)** | [🚀 国内镜像快速下载](https://gitee.com/felix3322/PotPlayer_ChatGPT_Translate/raw/master/releases/latest/installer.exe) |
+
+---
+
+## 🔧 更新内容 / Update Highlights
+
+*   **[重构] 安装器改为原生 C++ 实现**：将原先的 Python / PyQt 安装器迁移为单文件原生 Win32 C++ 版本，同时保留向导、自动探测、API 校验、预配置注入、注册表与卸载脚本等既有功能。
+*   **[发布] 基于当前标签生成补充发行版**：保持基础 tag 为 **v1.9.2**，本次补充发行版后缀为 **-release2**，并重新生成最新 installer 二进制。
+
+---
+
 # 📢 PotPlayer ChatGPT Translate v1.9.2
 
 ## 📦 下载地址 / Download
